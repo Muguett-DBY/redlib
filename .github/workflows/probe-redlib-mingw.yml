@@ -1,0 +1,50 @@
+name: Redlib Windows GNU validation
+
+on:
+  push:
+    branches: [probe/redlib-mingw-2026-10-25]
+    paths: [.github/workflows/probe-redlib-mingw.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-gnu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CARGO_TERM_COLOR: never
+      BINDGEN_EXTRA_CLANG_ARGS: --target=x86_64-pc-windows-gnu
+    steps:
+      - name: Check out the exact PR source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: b53e39e25969c82c9fb89b29b12e96a5d157a196
+          persist-credentials: false
+      - name: Prepare cross and the Rust target
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          test "$(git rev-parse HEAD)" = b53e39e25969c82c9fb89b29b12e96a5d157a196
+          rustc --version
+          cargo --version
+          mkdir -p "$RUNNER_TEMP/cross-bin"
+          curl --fail --location --retry 2 https://github.com/cross-rs/cross/releases/download/v0.2.5/cross-x86_64-unknown-linux-gnu.tar.gz -o "$RUNNER_TEMP/cross.tar.gz"
+          tar -xzf "$RUNNER_TEMP/cross.tar.gz" -C "$RUNNER_TEMP/cross-bin"
+          echo "$RUNNER_TEMP/cross-bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/cross-bin/cross" --version
+          rustup target add x86_64-pc-windows-gnu
+      - name: Build the full Windows GNU application
+        shell: bash
+        run: |
+          set -euo pipefail
+          cross build --locked --target x86_64-pc-windows-gnu
+          test -s target/x86_64-pc-windows-gnu/debug/redlib.exe
+          file target/x86_64-pc-windows-gnu/debug/redlib.exe
+      - name: Smoke-test CLI help under Wine
+        shell: bash
+        run: |
+          set -euo pipefail
+          cross run --locked --target x86_64-pc-windows-gnu -- --help
