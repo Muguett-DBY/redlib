@@ -43,8 +43,9 @@ jobs:
           cross build --locked --target x86_64-pc-windows-gnu
           test -s target/x86_64-pc-windows-gnu/debug/redlib.exe
           file target/x86_64-pc-windows-gnu/debug/redlib.exe
-      - name: Smoke-test CLI help under Wine
+      - name: Smoke-test CLI version under Wine
         shell: bash
         run: |
           set -euo pipefail
-          cross run --locked --target x86_64-pc-windows-gnu -- --help
+          cross run --locked --target x86_64-pc-windows-gnu -- --version | tee "$RUNNER_TEMP/cli-version.txt"
+          tr -d '\r' < "$RUNNER_TEMP/cli-version.txt" | grep -Fx 'Redlib 0.40.0'
