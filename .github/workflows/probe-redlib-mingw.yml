@@ -43,9 +43,18 @@ jobs:
           cross build --locked --target x86_64-pc-windows-gnu
           test -s target/x86_64-pc-windows-gnu/debug/redlib.exe
           file target/x86_64-pc-windows-gnu/debug/redlib.exe
-      - name: Smoke-test CLI version under Wine
+      - name: Smoke-test CLI version directly under Wine
         shell: bash
         run: |
           set -euo pipefail
-          cross run --locked --target x86_64-pc-windows-gnu -- --version | tee "$RUNNER_TEMP/cli-version.txt"
+          mapfile -t validation_images < <(docker image ls --format '{{.Repository}}:{{.Tag}}' | grep '^cross-custom-redlib:x86_64-pc-windows-gnu-.*-pre-build$')
+          test "${#validation_images[@]}" -eq 1
+          trap 'docker rm -f redlib-version-smoke >/dev/null 2>&1 || true' EXIT
+          set +e
+          timeout --signal=TERM --kill-after=10s 90s docker run --rm --name redlib-version-smoke --network none --volume "$PWD/target/x86_64-pc-windows-gnu/debug:/probe:ro" "${validation_images[0]}" wine /probe/redlib.exe --version > "$RUNNER_TEMP/cli-version.txt" 2> "$RUNNER_TEMP/wine-stderr.txt"
+          result=$?
+          set -e
+          cat "$RUNNER_TEMP/wine-stderr.txt"
+          cat "$RUNNER_TEMP/cli-version.txt"
+          test "$result" -eq 0
           tr -d '\r' < "$RUNNER_TEMP/cli-version.txt" | grep -Fx 'Redlib 0.40.0'
